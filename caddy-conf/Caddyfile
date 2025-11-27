@@ -5,9 +5,9 @@
 }
 
 signature-verifier.localhost {
-	reverse_proxy flask:5000
+	reverse_proxy flask:8050
 }
 
 signature-verifier.ddns.net {
-	reverse_proxy flask:5000
+	reverse_proxy flask:8050
 }
