@@ -5,8 +5,18 @@ services:
     restart: unless-stopped
     volumes:
       - ./ddns-updater-data:/updater/data
-    network_mode: bridge
     ports:
       - "8000:8000"
     environment:
       - LOG_LEVEL=warning
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    volumes:
+      - ./caddy-conf:/etc/caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
