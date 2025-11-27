@@ -1,0 +1,13 @@
+{
+	log {
+		level WARN
+	}
+}
+
+signature-verifier.localhost {
+	reverse_proxy flask:5000
+}
+
+signature-verifier.ddns.net {
+	reverse_proxy flask:5000
+}
