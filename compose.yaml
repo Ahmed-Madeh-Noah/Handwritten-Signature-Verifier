@@ -1,0 +1,12 @@
+services:
+  ddns-updater:
+    image: qmcgaw/ddns-updater
+    container_name: ddns-updater
+    restart: unless-stopped
+    volumes:
+      - ./ddns-updater-data:/updater/data
+    network_mode: bridge
+    ports:
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=warning
