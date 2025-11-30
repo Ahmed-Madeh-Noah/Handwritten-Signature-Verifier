@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error | SignatureVerifier{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-code">500</div>
+    <h2 style="color: var(--color-teal);">Internal Server Error</h2>
+
+    <p class="error-message">
+        Oops! Our AI spilled the ink.<br>
+        We are working on cleaning this up. Please try again later.
+    </p>
+
+    <a href="/" class="btn-primary">Back to Home</a>
+    <button onclick="location.reload()" class="btn-primary"
+        style="background-color: var(--color-med-blue); color: white; margin-left: 10px;">Try Again</button>
+</div>
+{% endblock %}
