@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="verifier-container" style="text-align: center;">
+    <h2>Signature Verification GUI</h2>
+
+    <form action="/GUI" method="post" enctype="multipart/form-data"
+        style="margin-top: 2rem; background: var(--card-bg); padding: 2rem; border-radius: 10px;">
+
+        {{ form.hidden_tag() }}
+
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 2rem; margin-bottom: 2rem;">
+
+            <div class="upload-box">
+                {{ form.sig1.label }}<br>
+                {{ form.sig1(id="sig1", accept="image/*") }}
+
+                {% for error in form.sig1.errors %}
+                <div style="color: var(--color-pink);">{{ error }}</div>
+                {% endfor %}
+
+                <img id="preview-1" src="#" alt="Preview"
+                    style="display:none; max-width: 200px; margin-top: 10px; border-radius: 5px;">
+            </div>
+
+            <div class="upload-box">
+                {{ form.sig2.label }}<br>
+                {{ form.sig2(id="sig2", accept="image/*") }}
+
+                {% for error in form.sig2.errors %}
+                <div style="color: var(--color-pink);">{{ error }}</div>
+                {% endfor %}
+
+                <img id="preview-2" src="#" alt="Preview"
+                    style="display:none; max-width: 200px; margin-top: 10px; border-radius: 5px;">
+            </div>
+        </div>
+
+        {{ form.submit(class="btn-primary") }}
+    </form>
+
+    {% if result %}
+    <div style="margin-top: 2rem; padding: 1rem; border: 2px solid var(--color-teal); border-radius: 5px;">
+        <h3>Result: {{ result }}</h3>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
