@@ -122,3 +122,23 @@ footer {
         margin: 0 0.5rem;
     }
 }
+
+.error-container {
+    text-align: center;
+    padding-top: 5rem;
+}
+
+.error-code {
+    font-size: 8rem;
+    font-weight: 900;
+    color: var(--color-pink);
+    line-height: 1;
+    margin-bottom: 1rem;
+    text-shadow: 4px 4px 0px var(--color-med-blue);
+}
+
+.error-message {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+    color: var(--text-color);
+}
