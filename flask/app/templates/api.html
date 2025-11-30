@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>API Documentation</h1>
+<div style="background: var(--card-bg); padding: 20px; border-radius: 8px; margin-top: 20px;">
+    <h3>Endpoint: <code style="color: var(--color-pink)">POST /API</code></h3>
+    <br>
+    <p>Send a POST request with two image files to receive a verification score.</p>
+    <br>
+    <h4>Example Request (Python):</h4>
+    <br>
+    <pre style="background: #222; color: #fff; padding: 15px; border-radius: 5px; overflow-x: auto;">
+import requests
+
+url = "https://signature-verifier.ddns.net/API"
+files = [
+    ('sig1', open('image1.png', 'rb')),
+    ('sig2', open('image2.png', 'rb'))
+]
+response = requests.post(url, files=files)
+print(response.json())
+    </pre>
+</div>
+{% endblock %}
