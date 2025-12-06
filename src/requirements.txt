@@ -1,0 +1,7 @@
+# requirements.txt - CEDAR Signature Preprocessing (pinned versions)
+
+torch==2.1.0
+torchvision==0.16.0
+opencv-python==4.8.1.78
+Pillow==10.1.0
+matplotlib==3.8.2
