@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 
 """
 CEDAR Signature Dataset Preprocessing Pipeline
@@ -63,7 +63,9 @@ SEED = 42
 
 # Configuration
 CONFIG = {
-
+    'data_dir': 'datasets/CEDAR',
+    'genuine_dir': 'datasets/CEDAR/original',
+    'forged_dir': 'datasets/CEDAR/forged',
     'data_dir': 'datasets/CEDAR',
     'genuine_dir': 'datasets/CEDAR/original',
     'forged_dir': 'datasets/CEDAR/forged',
