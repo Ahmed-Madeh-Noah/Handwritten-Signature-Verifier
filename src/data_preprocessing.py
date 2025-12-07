@@ -66,6 +66,12 @@ CONFIG = {
     'data_dir': 'datasets/CEDAR',
     'genuine_dir': 'datasets/CEDAR/original',
     'forged_dir': 'datasets/CEDAR/forged',
+    'data_dir': 'datasets/CEDAR',
+    'genuine_dir': 'datasets/CEDAR/original',
+    'forged_dir': 'datasets/CEDAR/forged',
+    'data_dir': '../datasets/CEDAR',
+    'genuine_dir': '../datasets/CEDAR/original',
+    'forged_dir': '../datasets/CEDAR/forged',
     'img_size': (150, 220),  # (height, width)
     'batch_size': 32,
     'num_workers': 2,
