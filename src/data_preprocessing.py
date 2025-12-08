@@ -63,12 +63,6 @@ SEED = 42
 
 # Configuration
 CONFIG = {
-    'data_dir': 'datasets/CEDAR',
-    'genuine_dir': 'datasets/CEDAR/original',
-    'forged_dir': 'datasets/CEDAR/forged',
-    'data_dir': 'datasets/CEDAR',
-    'genuine_dir': 'datasets/CEDAR/original',
-    'forged_dir': 'datasets/CEDAR/forged',
     'data_dir': '../datasets/CEDAR',
     'genuine_dir': '../datasets/CEDAR/original',
     'forged_dir': '../datasets/CEDAR/forged',
