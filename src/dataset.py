@@ -1,84 +1,80 @@
+from torchvision.datasets import ImageFolder
+from pathlib import Path
+from config import Config
+import torchvision.transforms.v2 as transforms
+from transformations import TRANSFORMATIONS
+import pandas as pd
 import torch
-import torch.nn.functional as F
-from torch.utils.data import Dataset
 import random
-import os
-from collections import defaultdict
+import numpy as np
+from torch.utils.data import Subset
 
-from src.data_preprocessing import preprocess_signature
 
-def get_empty_writer_entry():
-    return {'genuine': [], 'forged': []}
+class CEDARDataset(ImageFolder):
+    def __init__(self, root: Path = Config.Dataset.PATH, transform: transforms.Compose = TRANSFORMATIONS, *args, **kwargs) -> None:
+        super().__init__(root, transform, *args, **kwargs)
 
-class SiamesePairDataset(Dataset):
-    def __init__(self, file_list, img_size, transform=None):
-        self.file_list = file_list
-        self.img_size = img_size
-        self.transform = transform
-        
-        self.data_by_writer = defaultdict(get_empty_writer_entry)
-        
-        for file_path, label in file_list:
-            try:
-                filename = os.path.basename(file_path)
-                parts = filename.replace('.png', '').split('_')
-                writer_id = int(parts[1])
-                
-                if label == 1: 
-                    self.data_by_writer[writer_id]['genuine'].append(file_path)
-                else: 
-                    self.data_by_writer[writer_id]['forged'].append(file_path)
-            except:
-                continue
+        self._org_class_index = self.class_to_idx[Config.Dataset.CLASS_NAMES['original']]
+        self._forg_class_index = self.class_to_idx[Config.Dataset.CLASS_NAMES['forged']]
 
-        self.writers = list(self.data_by_writer.keys())
+        self._signature_samples = self._list_signature_samples()
+        self.pairs = self._init_pairs()
 
-    def __len__(self):
-        return len(self.file_list)
+    def _list_signature_samples(self) -> pd.DataFrame:
+        signatures = []
+        for path, class_idx in self.samples:
+            writer = Path(path).stem.split('_')[1]
+            signatures.append({
+                'path': path,
+                'class': class_idx,
+                'writer': writer
+            })
+        return pd.DataFrame(signatures)
 
-    def __getitem__(self, index):
-        writer_id = random.choice(self.writers)
-        
-        while len(self.data_by_writer[writer_id]['genuine']) < 1:
-             writer_id = random.choice(self.writers)
-             
-        anchor_path = random.choice(self.data_by_writer[writer_id]['genuine'])
-        
-        should_be_same = random.randint(0, 1) 
-        
-        if should_be_same == 0:
-            img2_path = random.choice(self.data_by_writer[writer_id]['genuine'])
-            target = torch.tensor([0], dtype=torch.float32)
-        else:
-            if self.data_by_writer[writer_id]['forged']:
-                img2_path = random.choice(self.data_by_writer[writer_id]['forged'])
-            else:
-                diff_writer = random.choice(self.writers)
-                while diff_writer == writer_id:
-                    diff_writer = random.choice(self.writers)
-                img2_path = random.choice(self.data_by_writer[diff_writer]['genuine'])
-            
-            target = torch.tensor([1], dtype=torch.float32)
+    def _init_pairs(self) -> pd.DataFrame:
+        anchor_signatures = self._signature_samples[
+            self._signature_samples['class'] == self._org_class_index
+        ]
+        df_pairs = pd.merge(anchor_signatures, self._signature_samples,
+                            on='writer', suffixes=('_anchor', '_sample'))
+        return pd.DataFrame({
+            'anchor': df_pairs['path_anchor'],
+            'sample': df_pairs['path_sample'],
+            'match': df_pairs['class_anchor'] == df_pairs['class_sample'],
+            'writer': df_pairs['writer']
+        })
 
-        try:
-            img1 = preprocess_signature(anchor_path, self.img_size)
-            img2 = preprocess_signature(img2_path, self.img_size)
-        except ValueError:
-            return self.__getitem__((index + 1) % len(self))
+    def __getitem__(self, index: int) -> tuple[tuple[torch.Tensor, torch.Tensor], bool]:
+        anchor_path = self.pairs.iloc[index]['anchor']
+        sample_path = self.pairs.iloc[index]['sample']
+        match = self.pairs.iloc[index]['match']
+        anchor_img = self.loader(anchor_path)
+        sample_img = self.loader(sample_path)
+        transformed_anchor_img = self.transform(anchor_img)
+        transformed_sample_img = self.transform(sample_img)
+        return (transformed_anchor_img, transformed_sample_img), match
 
-        if self.transform:
-            img1 = self.transform(img1)
-            img2 = self.transform(img2)
-            
-        return img1, img2, target
+    def __len__(self) -> int:
+        return len(self.pairs)
 
-class ContrastiveLoss(torch.nn.Module):
-    def __init__(self, margin=1.0):
-        super(ContrastiveLoss, self).__init__()
-        self.margin = margin
 
-    def forward(self, output1, output2, label):
-        euclidean_distance = F.pairwise_distance(output1, output2, keepdim=True)
-        loss_contrastive = torch.mean((1-label) * torch.pow(euclidean_distance, 2) +
-                                      (label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
-        return loss_contrastive
+def split_cedar_dataset(num_train_writers: int, num_test_writers: int, num_val_writers: int, dataset: CEDARDataset = CEDARDataset()) -> tuple[Subset, Subset, Subset]:
+    assert num_train_writers + num_val_writers + num_test_writers <= Config.Dataset.NUM_WRITERS, \
+        f'Total number of writers must be less than or equal {Config.Dataset.NUM_WRITERS}.'
+    assert all(w > 0 for w in (num_train_writers,
+               num_test_writers, num_val_writers)), 'All number of writers have a minimum of 1.'
+    unique_writers = dataset.pairs['writer'].unique()
+    random.shuffle(unique_writers)
+    train_end = num_train_writers
+    test_end = num_train_writers + num_test_writers
+    val_end = num_train_writers + num_test_writers + num_val_writers
+    train_writers = unique_writers[:train_end]
+    test_writers = unique_writers[train_end:test_end]
+    val_writers = unique_writers[test_end:val_end]
+    train_mask = dataset.pairs['writer'].isin(train_writers)
+    test_mask = dataset.pairs['writer'].isin(test_writers)
+    val_mask = dataset.pairs['writer'].isin(val_writers)
+    train_indices = np.where(train_mask)[0]
+    test_indices = np.where(test_mask)[0]
+    val_indices = np.where(val_mask)[0]
+    return Subset(dataset, train_indices), Subset(dataset, test_indices), Subset(dataset, val_indices)
