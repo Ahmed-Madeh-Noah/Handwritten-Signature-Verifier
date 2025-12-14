@@ -3,28 +3,28 @@ services:
     image: qmcgaw/ddns-updater
     container_name: ddns-updater
     restart: unless-stopped
-    volumes:
-      - ./ddns-updater-data:/updater/data
     ports:
       - "8000:8000"
     environment:
       - LOG_LEVEL=warning
+      - CONFIG=${DDNS_UPDATER_CONFIG}
 
   caddy:
     image: caddy:latest
     container_name: caddy
     restart: unless-stopped
     volumes:
-      - ./caddy-conf:/etc/caddy
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./app/static/:/static/
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
 
-  flask:
-    build: flask
-    container_name: flask
+  app:
+    build: app
+    container_name: app
     restart: unless-stopped
     ports:
-      - "8050:8050"
-    command: gunicorn -w 10 -t 60 -b 0.0.0.0:8050 app.app:app
+      - "8080:8080"
+    command: uv run waitress-serve main:app

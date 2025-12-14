@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Signature Verifier{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+
+<body>
+
+    <header>
+        <a href="/" class="logo">SignatureVerifier</a>
+        <nav>
+            <a href="/GUI/">GUI</a>
+            <a href="/API/">API</a>
+            <a href="https://github.com/Ahmed-Madeh-Noah/Handwritten-Signature-Verifier/tree/main/docs">Docs</a>
+            <a href="https://github.com/Ahmed-Madeh-Noah/Handwritten-Signature-Verifier/blob/main/LICENSE">License</a>
+            <a href="https://github.com/Ahmed-Madeh-Noah/Handwritten-Signature-Verifier" target="_blank">GitHub</a>
+            <button id="theme-toggle">🌙/☀️</button>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Open Source Signature Verifier</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

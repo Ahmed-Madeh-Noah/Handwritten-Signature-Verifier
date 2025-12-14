@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found | SignatureVerifier{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-code">404</div>
+    <h2 style="color: var(--color-teal);">Page Not Found</h2>
+
+    <p class="error-message">
+        Unlike a genuine signature, we couldn't verify that this page exists.<br>
+        It might have been moved or never existed at all.
+    </p>
+
+    <a href="/" class="btn-primary">Return to Safety</a>
+</div>
+{% endblock %}
