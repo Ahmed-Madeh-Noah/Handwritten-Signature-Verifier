@@ -1,7 +1,7 @@
-from config import Config
-from dataset import split_cedar_dataset
+from .config import Config
+from .dataset import split_cedar_dataset
 from torch.utils.data import DataLoader
-
+from .test import test
 
 def main():
     Config.setup_reproducibility(seed=42)
@@ -11,6 +11,7 @@ def main():
     val_loader = DataLoader(val, **Config.DataLoader.NON_TRAIN_KWARGS)
     test_loader = DataLoader(test, **Config.DataLoader.NON_TRAIN_KWARGS)
 
+    test(test_loader)
 
 if __name__ == '__main__':
     main()
