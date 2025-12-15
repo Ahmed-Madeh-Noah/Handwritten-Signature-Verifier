@@ -2,11 +2,11 @@ from dotenv import load_dotenv
 from logging.handlers import SMTPHandler
 import os
 import logging
-from PIL import Image
+from werkzeug.datastructures.file_storage import FileStorage
+import requests
 from flask import Flask, render_template, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 from SignatureUploadForm import SignatureUploadForm
-from io import BytesIO
 
 
 load_dotenv()
@@ -22,8 +22,23 @@ mail_handler = SMTPHandler(
 mail_handler.setLevel(logging.ERROR)
 
 
-def call_model(anchor: Image.Image, sample: Image.Image) -> dict[str, bool | int]:
-    return {"match": True, "confidence": 98}
+def model_inference(anchor: FileStorage, sample: FileStorage) -> dict[str, bool | int]:
+    MODEL_ENDPOINT = "http://localhost:8081/INFER/"
+    files_payload = {
+        "anchor": (
+            anchor.filename or "anchor.png",
+            anchor.stream,
+            anchor.content_type or "image/png",
+        ),
+        "sample": (
+            sample.filename or "sample.png",
+            sample.stream,
+            sample.content_type or "image/png",
+        ),
+    }
+    response = requests.post(MODEL_ENDPOINT, files=files_payload)
+    response.raise_for_status()
+    return response.json()
 
 
 app = Flask(__name__)
@@ -43,9 +58,9 @@ def gui():
     form = SignatureUploadForm()
     result = None
     if form.validate_on_submit():
-        anchor = Image.open(form.anchor.data)
-        sample = Image.open(form.sample.data)
-        result = call_model(anchor, sample)
+        anchor = form.anchor.data
+        sample = form.sample.data
+        result = model_inference(anchor, sample)
     return render_template("gui.html", form=form, result=result)
 
 
@@ -56,9 +71,7 @@ def get_api():
 
 @app.post("/API/")
 def post_api():
-    anchor = Image.open(BytesIO(request.files["anchor"].read()))
-    sample = Image.open(BytesIO(request.files["sample"].read()))
-    return call_model(anchor, sample)
+    return model_inference(request.files["anchor"], request.files["sample"])
 
 
 @app.errorhandler(404)
