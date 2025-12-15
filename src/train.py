@@ -1,117 +1,88 @@
 import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
-import os
+import torch.nn.functional as F
+from torch.nn import Module
+from tqdm import tqdm
+from torch.cuda.amp import autocast 
 
-from src.SiameseNetwork import SiameseNetwork
-from src.dataset import SiamesePairDataset, ContrastiveLoss
-from src.data_preprocessing import (
-    verify_dataset, 
-    create_splits, 
-    get_train_transform, 
-    get_val_transform, 
-    CONFIG
-)
+class ContrastiveLoss(Module):
+    """
+    Contrastive loss function.
+    Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    """
+    def __init__(self, margin=2.0):
+        super(ContrastiveLoss, self).__init__()
+        self.margin = margin
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Using device: {device}")
-
-BATCH_SIZE = CONFIG['batch_size'] 
-LEARNING_RATE = 0.0005
-NUM_EPOCHS = 50
-PATIENCE = 7            
-IMG_SIZE = (105, 105)   
-
-def main():
-
-    print("Initializing Data Splits...")
-    genuine_files, forged_files, writers = verify_dataset(CONFIG['genuine_dir'], CONFIG['forged_dir'])
-    
-    splits = create_splits(CONFIG['genuine_dir'], CONFIG['forged_dir'], writers)
-    
-    train_dataset = SiamesePairDataset(
-        file_list=splits['train'], 
-        img_size=IMG_SIZE, 
-        transform=get_train_transform()
-    )
-    
-    val_dataset = SiamesePairDataset(
-        file_list=splits['val'], 
-        img_size=IMG_SIZE, 
-        transform=get_val_transform()
-    )
-
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
-    
-    print(f"Training Pairs: {len(train_dataset)}")
-    print(f"Validation Pairs: {len(val_dataset)}")
-
-    model = SiameseNetwork().to(device)
-    criterion = ContrastiveLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-    best_val_loss = float('inf')
-    patience_counter = 0
-    
-    print("\nStarting Training...")
-    print("-" * 65)
-
-    for epoch in range(NUM_EPOCHS):
+    def forward(self, output1, output2, label):
+        euclidean_distance = F.pairwise_distance(output1, output2)
         
-        model.train()
-        running_train_loss = 0.0
-        
-        for i, (img1, img2, label) in enumerate(train_loader):
-            img1, img2, label = img1.to(device), img2.to(device), label.to(device)
+        loss_contrastive = torch.mean((label) * torch.pow(euclidean_distance, 2) +
+                                      (1 - label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
+
+        return loss_contrastive
+
+def train_epoch(model, dataloader, criterion, optimizer, device, scaler=None, epoch_index=0):
+
+    model.train()
+    running_loss = 0.0
+    
+    loop = tqdm(dataloader, desc=f"Train Epoch {epoch_index}", leave=False)
+
+    for batch_idx, ((img1, img2), match) in enumerate(loop):
+        img1 = img1.to(device, non_blocking=True)
+        img2 = img2.to(device, non_blocking=True)
+        match = match.to(device).float()
+
+        optimizer.zero_grad()
+
+        if scaler:
+            with autocast():
+                out1, out2 = model(img1, img2)
+                loss = criterion(out1, out2, match)
             
-            optimizer.zero_grad()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
             out1, out2 = model(img1, img2)
-            loss = criterion(out1, out2, label)
+            loss = criterion(out1, out2, match)
             loss.backward()
             optimizer.step()
+
+        loss_val = loss.item()
+        running_loss += loss_val
+
+        loop.set_postfix(loss=loss_val)
+
+    avg_loss = running_loss / len(dataloader)
+    return avg_loss
+
+def eval_epoch(model, dataloader, criterion, device, threshold=1.0):
+ 
+    model.eval()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+    
+    loop = tqdm(dataloader, desc="Validating", leave=False)
+    
+    with torch.no_grad():
+        for (img1, img2), match in loop:
+            img1 = img1.to(device, non_blocking=True)
+            img2 = img2.to(device, non_blocking=True)
+            match = match.to(device).float()
+
+            out1, out2 = model(img1, img2)
             
-            running_train_loss += loss.item()
+            loss = criterion(out1, out2, match)
+            running_loss += loss.item()
 
-        avg_train_loss = running_train_loss / len(train_loader)
-
-        model.eval()
-        running_val_loss = 0.0
-        
-        with torch.no_grad(): 
-            for i, (img1, img2, label) in enumerate(val_loader):
-                img1, img2, label = img1.to(device), img2.to(device), label.to(device)
-                
-                out1, out2 = model(img1, img2)
-                loss = criterion(out1, out2, label)
-                
-                running_val_loss += loss.item()
-                
-        avg_val_loss = running_val_loss / len(val_loader)
-
-        print(f"Epoch [{epoch+1}/{NUM_EPOCHS}] "
-              f"Train Loss: {avg_train_loss:.5f} | Val Loss: {avg_val_loss:.5f}")
-
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            patience_counter = 0 
+            euclidean_distance = F.pairwise_distance(out1, out2)
+            predictions = (euclidean_distance < threshold).float()
             
-            torch.save(model.state_dict(), "best_siamese_model.pth")
-            print("  --> Validation Loss Improved. Model Saved.")
-            
-        else:
-            patience_counter += 1
-            print(f"  --> No improvement. Early Stopping Counter: {patience_counter}/{PATIENCE}")
-            
-            if patience_counter >= PATIENCE:
-                print("\n" + "="*40)
-                print("EARLY STOPPING TRIGGERED")
-                print("Model stopped to prevent overfitting.")
-                print(f"Best Validation Loss: {best_val_loss:.5f}")
-                print("="*40)
-                break
+            correct += (predictions == match).sum().item()
+            total += match.size(0)
 
-    print("Training process finished.")
-
-if __name__ == "__main__":
-    main()
+    avg_loss = running_loss / len(dataloader)
+    accuracy = 100 * correct / total
+    return avg_loss, accuracy

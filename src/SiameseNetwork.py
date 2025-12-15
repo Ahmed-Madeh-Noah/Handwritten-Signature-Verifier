@@ -1,133 +1,47 @@
-
 import torch.nn as nn
 
-class SiameseNetwork(nn.Module):
+class SiameseNetworkLite(nn.Module):
     def __init__(self):
-        super(SiameseNetwork, self).__init__()
+        super(SiameseNetworkLite, self).__init__()
         self.cnn1 = nn.Sequential(
+            # Block 1
+            nn.Conv2d(1, 64, kernel_size=11, stride=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, stride=2),
+
+            # Block 2
+            nn.Conv2d(64, 128, kernel_size=5, stride=1, padding=2),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, stride=2),
+            nn.Dropout2d(p=0.3),
+
+            # Block 3
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
             
-            nn.Conv2d(1, 96, kernel_size=11,stride=1),
-            nn.ReLU(inplace=True),
-            nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2),
-            nn.MaxPool2d(3, stride=2),
-
-            nn.Conv2d(96, 256, kernel_size=5,stride=1,padding=2),
-            nn.ReLU(inplace=True),
-            nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2),
-            nn.MaxPool2d(3, stride=2),
-            nn.Dropout2d(p=0.3),
-
-            nn.Conv2d(256,384, kernel_size=3,stride=1,padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1),
+            # Block 4
+            nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(3, stride=2),
             nn.Dropout2d(p=0.3),
+
+            # 128 * 4 * 4 = 2,048 features
+            nn.AdaptiveAvgPool2d((4, 4))
         )
         
         self.fc1 = nn.Sequential(
-            nn.Linear(30976, 1024),
+            nn.Linear(2048, 512),
             nn.ReLU(inplace=True),
-            nn.Dropout2d(p=0.5),
+            nn.Dropout(p=0.5),
             
-            nn.Linear(1024, 128),
-            nn.ReLU(inplace=True),
-            
-            nn.Linear(128,2)
-        )
-    
-    def forward_once(self, x):
-        output = self.cnn1(x)
-        output = output.view(output.size()[0], -1)
-        output = self.fc1(output)
-        return output
-
-    def forward(self, input1, input2):
-        output1 = self.forward_once(input1)
-        output2 = self.forward_once(input2)
-
-import torch.nn as nn
-
-class SiameseNetwork(nn.Module):
-    def __init__(self):
-        super(SiameseNetwork, self).__init__()
-        self.cnn1 = nn.Sequential(
-            
-            nn.Conv2d(1, 96, kernel_size=11,stride=1),
-            nn.ReLU(inplace=True),
-            nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2),
-            nn.MaxPool2d(3, stride=2),
-
-            nn.Conv2d(96, 256, kernel_size=5,stride=1,padding=2),
-            nn.ReLU(inplace=True),
-            nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2),
-            nn.MaxPool2d(3, stride=2),
-            nn.Dropout2d(p=0.3),
-
-            nn.Conv2d(256,384, kernel_size=3,stride=1,padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(3, stride=2),
-            nn.Dropout2d(p=0.3),
-        )
-        
-        self.fc1 = nn.Sequential(
-            nn.Linear(30976, 1024),
-            nn.ReLU(inplace=True),
-            nn.Dropout2d(p=0.5),
-            
-            nn.Linear(1024, 128),
+            nn.Linear(512, 128),
             nn.ReLU(inplace=True),
             
-            nn.Linear(128,2)
-        )
-    
-    def forward_once(self, x):
-        output = self.cnn1(x)
-        output = output.view(output.size()[0], -1)
-        output = self.fc1(output)
-        return output
-
-    def forward(self, input1, input2):
-        output1 = self.forward_once(input1)
-        output2 = self.forward_once(input2)
-
-import torch.nn as nn
-
-class SiameseNetwork(nn.Module):
-    def __init__(self):
-        super(SiameseNetwork, self).__init__()
-        self.cnn1 = nn.Sequential(
-            
-            nn.Conv2d(1, 96, kernel_size=11,stride=1),
-            nn.ReLU(inplace=True),
-            nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2),
-            nn.MaxPool2d(3, stride=2),
-
-            nn.Conv2d(96, 256, kernel_size=5,stride=1,padding=2),
-            nn.ReLU(inplace=True),
-            nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2),
-            nn.MaxPool2d(3, stride=2),
-            nn.Dropout2d(p=0.3),
-
-            nn.Conv2d(256,384, kernel_size=3,stride=1,padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(3, stride=2),
-            nn.Dropout2d(p=0.3),
-        )
-        
-        self.fc1 = nn.Sequential(
-            nn.Linear(30976, 1024),
-            nn.ReLU(inplace=True),
-            nn.Dropout2d(p=0.5),
-            
-            nn.Linear(1024, 128),
-            nn.ReLU(inplace=True),
-            
-            nn.Linear(128,2)
+            nn.Linear(128, 2)
         )
     
     def forward_once(self, x):
