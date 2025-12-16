@@ -41,8 +41,8 @@
 
     {% if result %}
     <div style="margin-top: 2rem; padding: 1rem; border: 2px solid var(--color-teal); border-radius: 5px;">
-        <h3>Match: {{ result['match'] }}</h3>
-        <h3>Match: {{ result['confidence'] }}%</h3>
+        <h3>Same Writer: {{ result['same'] }}</h3>
+        <h3>Confidence: {{ result['confidence'] }}%</h3>
     </div>
     {% endif %}
 </div>

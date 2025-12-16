@@ -1,88 +1,83 @@
-import torch
+import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import Module
+import torch
+from torch.utils.data import DataLoader
+import torch.optim as optim
+import torch.amp as amp
+from config import Config
 from tqdm import tqdm
-from torch.cuda.amp import autocast 
 
-class ContrastiveLoss(Module):
-    """
-    Contrastive loss function.
-    Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
-    """
-    def __init__(self, margin=2.0):
-        super(ContrastiveLoss, self).__init__()
-        self.margin = margin
 
-    def forward(self, output1, output2, label):
-        euclidean_distance = F.pairwise_distance(output1, output2)
-        
-        loss_contrastive = torch.mean((label) * torch.pow(euclidean_distance, 2) +
-                                      (1 - label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
+class ContrastiveLoss(nn.Module):
+    def __init__(self, margin: float, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._margin = margin
+
+    def forward(self, anchor, sample, label):
+        euclidean_distance = F.pairwise_distance(anchor, sample)
+
+        loss_contrastive = torch.mean(
+            (label) * torch.pow(euclidean_distance, 2)
+            + (1 - label)
+            * torch.pow(torch.clamp(self._margin - euclidean_distance, min=0.0), 2)
+        )
 
         return loss_contrastive
 
-def train_epoch(model, dataloader, criterion, optimizer, device, scaler=None, epoch_index=0):
 
-    model.train()
+def train(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    loss_function: nn.Module,
+    optimizer: optim.Optimizer,
+    scaler: amp.grad_scaler.GradScaler | None,
+) -> nn.Module:
+    with tqdm(range(Config.Model.EPOCHS), desc="Epochs") as epochs_bar:
+        for _ in epochs_bar:
+            model.train()
+            with tqdm(
+                train_loader, desc="Batches", colour="cyan", leave=False
+            ) as batches_bar:
+                for (anchor, sample), same in batches_bar:
+                    anchor = anchor.to(Config.Global.DEVICE, non_blocking=True)
+                    sample = sample.to(Config.Global.DEVICE, non_blocking=True)
+                    same = same.to(Config.Global.DEVICE)
+                    optimizer.zero_grad()
+                    if scaler:
+                        with amp.autocast_mode.autocast(device_type="cuda"):
+                            anchor_y, sample_y = model(anchor, sample)
+                            loss = loss_function(anchor_y, sample_y, same)
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        anchor_y, sample_y = model(anchor, sample)
+                        loss = loss_function(anchor_y, sample_y, same)
+                        loss.backward()
+                        optimizer.step()
+                    batches_bar.set_postfix(loss=round(loss.item(), 2))
+            epoch_loss = validate(model, val_loader, loss_function)
+            epochs_bar.set_postfix(loss=epoch_loss)
+    return model
+
+
+def validate(
+    model: nn.Module, val_loader: DataLoader, loss_function: nn.Module
+) -> float:
     running_loss = 0.0
-    
-    loop = tqdm(dataloader, desc=f"Train Epoch {epoch_index}", leave=False)
-
-    for batch_idx, ((img1, img2), match) in enumerate(loop):
-        img1 = img1.to(device, non_blocking=True)
-        img2 = img2.to(device, non_blocking=True)
-        match = match.to(device).float()
-
-        optimizer.zero_grad()
-
-        if scaler:
-            with autocast():
-                out1, out2 = model(img1, img2)
-                loss = criterion(out1, out2, match)
-            
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            out1, out2 = model(img1, img2)
-            loss = criterion(out1, out2, match)
-            loss.backward()
-            optimizer.step()
-
-        loss_val = loss.item()
-        running_loss += loss_val
-
-        loop.set_postfix(loss=loss_val)
-
-    avg_loss = running_loss / len(dataloader)
-    return avg_loss
-
-def eval_epoch(model, dataloader, criterion, device, threshold=1.0):
- 
     model.eval()
-    running_loss = 0.0
-    correct = 0
-    total = 0
-    
-    loop = tqdm(dataloader, desc="Validating", leave=False)
-    
-    with torch.no_grad():
-        for (img1, img2), match in loop:
-            img1 = img1.to(device, non_blocking=True)
-            img2 = img2.to(device, non_blocking=True)
-            match = match.to(device).float()
-
-            out1, out2 = model(img1, img2)
-            
-            loss = criterion(out1, out2, match)
-            running_loss += loss.item()
-
-            euclidean_distance = F.pairwise_distance(out1, out2)
-            predictions = (euclidean_distance < threshold).float()
-            
-            correct += (predictions == match).sum().item()
-            total += match.size(0)
-
-    avg_loss = running_loss / len(dataloader)
-    accuracy = 100 * correct / total
-    return avg_loss, accuracy
+    with tqdm(
+        val_loader, desc="Validation Batches", colour="magenta", leave=False
+    ) as validation_batches_bar:
+        with torch.no_grad():
+            for (anchor, sample), same in validation_batches_bar:
+                anchor = anchor.to(Config.Global.DEVICE, non_blocking=True)
+                sample = sample.to(Config.Global.DEVICE, non_blocking=True)
+                same = same.to(Config.Global.DEVICE)
+                anchor_y, sample_y = model(anchor, sample)
+                loss = loss_function(anchor_y, sample_y, same)
+                running_loss += loss.item()
+        avg_loss = round(running_loss / len(val_loader), 2)
+        torch.save(model.state_dict(), Config.Model.PATH)
+        return avg_loss

@@ -23,7 +23,7 @@ mail_handler.setLevel(logging.ERROR)
 
 
 def model_inference(anchor: FileStorage, sample: FileStorage) -> dict[str, bool | int]:
-    MODEL_ENDPOINT = "http://localhost:8081/INFER/"
+    MODEL_ENDPOINT = "http://src:8000/INFER/"
     files_payload = {
         "anchor": (
             anchor.filename or "anchor.png",
